@@ -17,6 +17,10 @@ from .views import (RegisterTeacherView,
     WeeklyAttendanceSummaryView,
     MonthlyAttendanceSummaryView,
     StudentAttendanceHistoryView,
+    AdminDashboardOverviewView,
+    AdminTodayClassWiseAttendanceView,
+    TeacherDashboardOverviewView,
+    TeacherTodayAbsentListView,
 )
 urlpatterns = [
     path('register-teacher/', RegisterTeacherView.as_view(), name='register_teacher'),
@@ -44,5 +48,11 @@ urlpatterns = [
     path("reports/weekly/<int:class_id>/", WeeklyAttendanceSummaryView.as_view(), name="weekly_report"),
     path("reports/monthly/<int:class_id>/", MonthlyAttendanceSummaryView.as_view(), name="monthly_report"),
     path("reports/student/<int:student_id>/", StudentAttendanceHistoryView.as_view(), name="student_history"),
+    
+     # Phase 6 - Dashboard APIs
+    path("dashboard/admin/overview/", AdminDashboardOverviewView.as_view(), name="admin_dashboard_overview"),
+    path("dashboard/admin/classwise-today/", AdminTodayClassWiseAttendanceView.as_view(), name="admin_classwise_today"),
+    path("dashboard/teacher/overview/", TeacherDashboardOverviewView.as_view(), name="teacher_dashboard_overview"),
+    path("dashboard/teacher/absent-today/", TeacherTodayAbsentListView.as_view(), name="teacher_absent_today"),
 ]
 

@@ -12,7 +12,7 @@ from .models import SchoolClass, Student, AttendanceRecord
 from .utils import generate_student_qr
 from django.utils import timezone
 
-from django.db.models import Count
+from django.db.models import Count, Q
 from datetime import datetime
 from .report_utils import get_week_range, get_month_range
 
@@ -402,4 +402,136 @@ class StudentAttendanceHistoryView(APIView):
             "total_days": total,
             "attendance_percent": percent,
             "records": AttendanceRecordSerializer(records, many=True).data
+        }, status=status.HTTP_200_OK)
+
+class AdminDashboardOverviewView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get(self, request):
+        today = timezone.now().date()
+
+        # Totals
+        total_students = Student.objects.count()
+        total_classes = SchoolClass.objects.count()
+        total_teachers = User.objects.filter(role="TEACHER").count()
+
+        # Today's attendance
+        today_records = AttendanceRecord.objects.filter(date=today)
+        present_today = today_records.filter(status="P").count()
+        absent_today = today_records.filter(status="A").count()
+
+        total_marked_today = today_records.count()
+
+        attendance_percent = 0
+        if total_marked_today > 0:
+            attendance_percent = round((present_today / total_marked_today) * 100, 2)
+
+        return Response({
+            "date": str(today),
+            "totals": {
+                "students": total_students,
+                "classes": total_classes,
+                "teachers": total_teachers,
+            },
+            "today_attendance": {
+                "marked": total_marked_today,
+                "present": present_today,
+                "absent": absent_today,
+                "attendance_percent": attendance_percent
+            }
+        }, status=status.HTTP_200_OK)
+
+class AdminTodayClassWiseAttendanceView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get(self, request):
+        today = timezone.now().date()
+
+        classes = SchoolClass.objects.all().order_by("class_name", "section")
+
+        result = []
+
+        for cls in classes:
+            records = AttendanceRecord.objects.filter(student_class=cls, date=today)
+            present_count = records.filter(status="P").count()
+            absent_count = records.filter(status="A").count()
+            total = records.count()
+
+            percent = 0
+            if total > 0:
+                percent = round((present_count / total) * 100, 2)
+
+            result.append({
+                "class_id": cls.id,
+                "class_name": str(cls),
+                "present": present_count,
+                "absent": absent_count,
+                "total_marked": total,
+                "attendance_percent": percent
+            })
+
+        return Response({
+            "date": str(today),
+            "classes": result
+        }, status=status.HTTP_200_OK)
+
+class TeacherDashboardOverviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # only teacher allowed
+        if request.user.role != "TEACHER":
+            return Response({"error": "Only teacher can access this dashboard"}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.now().date()
+
+        assigned_classes = SchoolClass.objects.filter(class_teacher=request.user)
+
+        class_ids = assigned_classes.values_list("id", flat=True)
+
+        total_students = Student.objects.filter(student_class_id__in=class_ids).count()
+
+        today_records = AttendanceRecord.objects.filter(
+            student_class_id__in=class_ids,
+            date=today
+        )
+        present_today = today_records.filter(status="P").count()
+        absent_today = today_records.filter(status="A").count()
+
+        return Response({
+            "teacher": request.user.username,
+            "date": str(today),
+            "assigned_classes": [
+                {"id": cls.id, "name": str(cls)} for cls in assigned_classes
+            ],
+            "summary": {
+                "total_students": total_students,
+                "marked_today": today_records.count(),
+                "present_today": present_today,
+                "absent_today": absent_today,
+            }
+        }, status=status.HTTP_200_OK)
+
+class TeacherTodayAbsentListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != "TEACHER":
+            return Response({"error": "Only teacher can access this"}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.now().date()
+        assigned_classes = SchoolClass.objects.filter(class_teacher=request.user)
+        class_ids = assigned_classes.values_list("id", flat=True)
+
+        absent_records = AttendanceRecord.objects.filter(
+            student_class_id__in=class_ids,
+            date=today,
+            status="A"
+        ).order_by("student__full_name")
+
+        data = AttendanceRecordSerializer(absent_records, many=True).data
+
+        return Response({
+            "date": str(today),
+            "absent_records": data
         }, status=status.HTTP_200_OK)
