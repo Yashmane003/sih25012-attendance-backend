@@ -12,6 +12,10 @@ from .models import SchoolClass, Student, AttendanceRecord
 from .utils import generate_student_qr
 from django.utils import timezone
 
+from django.db.models import Count
+from datetime import datetime
+from .report_utils import get_week_range, get_month_range
+
 User = get_user_model()
 
 class RegisterTeacherView(APIView):
@@ -236,3 +240,166 @@ class TodayAttendanceByClassView(APIView):
 
         serializer = AttendanceRecordSerializer(records, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class DailyAttendanceReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, class_id):
+        # Step 1: teacher/admin check
+        if request.user.role not in ['TEACHER', 'ADMIN']:
+            return Response({"error": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Step 2: read date param (?date=YYYY-MM-DD)
+        date_str = request.query_params.get("date")
+        if date_str:
+            try:
+                report_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            report_date = timezone.now().date()
+
+        # Step 3: fetch attendance records
+        records = AttendanceRecord.objects.filter(
+            student_class_id=class_id,
+            date=report_date
+        )
+
+        # Step 4: summary counts
+        total_present = records.filter(status="P").count()
+        total_absent = records.filter(status="A").count()
+
+        return Response({
+            "class_id": class_id,
+            "date": str(report_date),
+            "total_present": total_present,
+            "total_absent": total_absent,
+            "total_marked": records.count(),
+            "records": AttendanceRecordSerializer(records, many=True).data
+        }, status=status.HTTP_200_OK)
+
+class WeeklyAttendanceSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, class_id):
+        if request.user.role not in ['TEACHER', 'ADMIN']:
+            return Response({"error": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
+
+        # read optional date param
+        date_str = request.query_params.get("date")
+        if date_str:
+            try:
+                base_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            base_date = timezone.now().date()
+
+        week_start, week_end = get_week_range(base_date)
+
+        # fetch records for week
+        records = AttendanceRecord.objects.filter(
+            student_class_id=class_id,
+            date__range=[week_start, week_end]
+        )
+
+        # count status
+        present_count = records.filter(status="P").count()
+        absent_count = records.filter(status="A").count()
+
+        return Response({
+            "class_id": class_id,
+            "week_start": str(week_start),
+            "week_end": str(week_end),
+            "present_count": present_count,
+            "absent_count": absent_count,
+            "total_marked": records.count(),
+        }, status=status.HTTP_200_OK)
+
+class MonthlyAttendanceSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, class_id):
+        if request.user.role not in ['TEACHER', 'ADMIN']:
+            return Response({"error": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
+
+        date_str = request.query_params.get("date")
+        if date_str:
+            try:
+                base_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            base_date = timezone.now().date()
+
+        month_start, month_end = get_month_range(base_date)
+
+        records = AttendanceRecord.objects.filter(
+            student_class_id=class_id,
+            date__range=[month_start, month_end]
+        )
+
+        present_count = records.filter(status="P").count()
+        absent_count = records.filter(status="A").count()
+        total_marked = records.count()
+
+        # percentage calculation
+        attendance_percent = 0
+        if total_marked > 0:
+            attendance_percent = round((present_count / total_marked) * 100, 2)
+
+        return Response({
+            "class_id": class_id,
+            "month_start": str(month_start),
+            "month_end": str(month_end),
+            "present_count": present_count,
+            "absent_count": absent_count,
+            "total_marked": total_marked,
+            "attendance_percent": attendance_percent
+        }, status=status.HTTP_200_OK)
+
+class StudentAttendanceHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, student_id):
+        if request.user.role not in ['TEACHER', 'ADMIN']:
+            return Response({"error": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
+
+        # optional filters
+        from_date = request.query_params.get("from")
+        to_date = request.query_params.get("to")
+
+        try:
+            student = Student.objects.get(pk=student_id)
+        except Student.DoesNotExist:
+            return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        records = AttendanceRecord.objects.filter(student=student).order_by("-date")
+
+        # apply date filtering if provided
+        if from_date and to_date:
+            try:
+                from_d = datetime.strptime(from_date, "%Y-%m-%d").date()
+                to_d = datetime.strptime(to_date, "%Y-%m-%d").date()
+                records = records.filter(date__range=[from_d, to_d])
+            except ValueError:
+                return Response({"error": "Invalid from/to date format. Use YYYY-MM-DD"}, status=status.HTTP_400_BAD_REQUEST)
+
+        present_count = records.filter(status="P").count()
+        absent_count = records.filter(status="A").count()
+        total = records.count()
+
+        percent = 0
+        if total > 0:
+            percent = round((present_count / total) * 100, 2)
+
+        return Response({
+            "student_id": student_id,
+            "student_name": student.full_name,
+            "class": str(student.student_class),
+            "present_count": present_count,
+            "absent_count": absent_count,
+            "total_days": total,
+            "attendance_percent": percent,
+            "records": AttendanceRecordSerializer(records, many=True).data
+        }, status=status.HTTP_200_OK)
