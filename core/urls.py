@@ -11,6 +11,8 @@ from .views import (RegisterTeacherView,
     StudentDetailView,
     StudentUpdateView,
     StudentDeleteView,
+    MarkAttendanceByQRView,
+    TodayAttendanceByClassView,
 )
 urlpatterns = [
     path('register-teacher/', RegisterTeacherView.as_view(), name='register_teacher'),
@@ -28,5 +30,9 @@ urlpatterns = [
     path('students/<int:pk>/', StudentDetailView.as_view(), name='student_detail'),
     path('students/<int:pk>/update/', StudentUpdateView.as_view(), name='student_update'),
     path('students/<int:pk>/delete/', StudentDeleteView.as_view(), name='student_delete'),
+    
+    # Phase 4 - Attendance
+    path('attendance/mark/', MarkAttendanceByQRView.as_view(), name='mark_attendance_qr'),
+    path('attendance/today/<int:class_id>/', TodayAttendanceByClassView.as_view(), name='today_attendance'),
 ]
 

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import SchoolClass, Student
+from .models import SchoolClass, Student, AttendanceRecord
 
 User = get_user_model()
 
@@ -80,4 +80,39 @@ class StudentSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if obj.qr_code_image and request:
             return request.build_absolute_uri(obj.qr_code_image.url)
+        return None
+
+
+
+class AttendanceRecordSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField(read_only=True)
+    class_name = serializers.SerializerMethodField(read_only=True)
+    marked_by_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = AttendanceRecord
+        fields = [
+            'id',
+            'student',
+            'student_name',
+            'student_class',
+            'class_name',
+            'date',
+            'status',
+            'marked_by',
+            'marked_by_name',
+            'marked_at',
+            'method'
+        ]
+        read_only_fields = ['marked_by', 'marked_at', 'method']
+
+    def get_student_name(self, obj):
+        return obj.student.full_name
+
+    def get_class_name(self, obj):
+        return str(obj.student_class)
+
+    def get_marked_by_name(self, obj):
+        if obj.marked_by:
+            return obj.marked_by.username
         return None
