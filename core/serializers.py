@@ -1,28 +1,37 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import SchoolClass, Student, AttendanceRecord
-
+from rest_framework.exceptions import ValidationError
 User = get_user_model()
 
 class RegisterTeacherSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, min_length=8)
+    role = serializers.ChoiceField(
+        choices=['ADMIN', 'TEACHER'],
+        required=True  # Make role required
+    )
     
     class Meta:
         model = User
-        fields = ['id','username','email','password','role']
-        
-        extra_kwargs = {
-            'role':{'read_only':True}
-        }
-        
+        fields = ['id', 'username', 'email', 'password', 'role']
+    
+    def validate_role(self, value):
+        """Ensure only one ADMIN exists"""
+        if value == 'ADMIN':
+            # Check if an admin already exists
+            if User.objects.filter(role='ADMIN').exists():
+                raise ValidationError("An admin already exists in the system. Only one admin is allowed.")
+        return value
+    
     def create(self, validated_data):
-        user = User(
+        role = validated_data.pop('role')  # Extract role
+        
+        user = User.objects.create_user(
             username=validated_data['username'],
-            email=validated_data.get('email',''),
-            is_active=True
+            email=validated_data.get('email', ''),
+            password=validated_data['password']
         )
-        user.set_password(validated_data['password'])
-        user.role = 'TEACHER'
+        user.role = role
         user.save()
         return user
 
