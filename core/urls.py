@@ -6,6 +6,11 @@ from .views import (RegisterTeacherView,
     SchoolClassDetailView,
     SchoolClassUpdateView,
     SchoolClassDeleteView,
+    StudentCreateView,
+    StudentListView,
+    StudentDetailView,
+    StudentUpdateView,
+    StudentDeleteView,
 )
 urlpatterns = [
     path('register-teacher/', RegisterTeacherView.as_view(), name='register_teacher'),
@@ -16,4 +21,12 @@ urlpatterns = [
     path('classes/<int:pk>/', SchoolClassDetailView.as_view(), name='class_detail'),
     path('classes/<int:pk>/update/', SchoolClassUpdateView.as_view(), name='class_update'),
     path('classes/<int:pk>/delete/', SchoolClassDeleteView.as_view(), name='class_delete'),
+    
+    # Phase 3 - Student Module
+    path('students/create/', StudentCreateView.as_view(), name='student_create'),
+    path('students/', StudentListView.as_view(), name='student_list'),
+    path('students/<int:pk>/', StudentDetailView.as_view(), name='student_detail'),
+    path('students/<int:pk>/update/', StudentUpdateView.as_view(), name='student_update'),
+    path('students/<int:pk>/delete/', StudentDeleteView.as_view(), name='student_delete'),
 ]
+

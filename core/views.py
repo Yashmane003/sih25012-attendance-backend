@@ -5,10 +5,11 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
 from django.contrib.auth import get_user_model
-from .serializers import RegisterTeacherSerializer, ProfileSerializer, SchoolClassSerializer
+from .serializers import RegisterTeacherSerializer, ProfileSerializer, SchoolClassSerializer, StudentSerializer
 
 from .permissions import IsAdmin
-from .models import SchoolClass
+from .models import SchoolClass, Student
+from .utils import generate_student_qr
 
 User = get_user_model()
 
@@ -98,4 +99,70 @@ class SchoolClassDeleteView(APIView):
         
         cls.delete()
         return Response({'message':"Class Detele successfully"}, status=status.HTTP_200_OK)
+    
+class StudentCreateView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+    
+    def post(self, request):
+        serializer = StudentSerializer(data=request.data, context={"request":request})
         
+        if serializer.is_valid():
+            student = serializer.save()
+            
+            generate_student_qr(student)
+            student.save()
+            
+            return Response(
+                {"message":"Student created successfully","data":StudentSerializer(student, context={"request":request}).data},status=status.HTTP_201_CREATED
+            )
+        
+        return Response(serializer.error, status=status.HTTP_400_BAD_REQUEST)
+
+class StudentListView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get(self, request):
+        students = Student.objects.all().order_by('-id')
+        serializer = StudentSerializer(students, many=True, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class StudentDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get(self, request, pk):
+        try:
+            student = Student.objects.get(pk=pk)
+        except Student.DoesNotExist:
+            return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = StudentSerializer(student, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class StudentUpdateView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def put(self, request, pk):
+        try:
+            student = Student.objects.get(pk=pk)
+        except Student.DoesNotExist:
+            return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = StudentSerializer(student, data=request.data, context={"request": request})
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Student updated successfully", "data": serializer.data})
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class StudentDeleteView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def delete(self, request, pk):
+        try:
+            student = Student.objects.get(pk=pk)
+        except Student.DoesNotExist:
+            return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        student.delete()
+        return Response({"message": "Student deleted successfully"}, status=status.HTTP_200_OK)

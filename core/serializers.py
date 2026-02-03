@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import SchoolClass
+from .models import SchoolClass, Student
 
 User = get_user_model()
 
@@ -47,4 +47,37 @@ class SchoolClassSerializer(serializers.ModelSerializer):
     def get_class_teacher_name(self, obj):
         if obj.class_teacher:
             return obj.class_teacher.username
+        return None
+    
+
+
+class StudentSerializer(serializers.ModelSerializer):
+    class_name = serializers.SerializerMethodField(read_only=True)
+    qr_code_url = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Student
+        fields = [
+            'id',
+            'student_uid',
+            'full_name',
+            'roll_no',
+            'student_class',
+            'class_name',
+            'guardian_mobile',
+            'verification_key',
+            'qr_code_image',
+            'qr_code_url',
+            'is_active',
+            'created_at'
+        ]
+        read_only_fields = ['student_uid', 'verification_key', 'qr_code_image']
+
+    def get_class_name(self, obj):
+        return str(obj.student_class)
+
+    def get_qr_code_url(self, obj):
+        request = self.context.get("request")
+        if obj.qr_code_image and request:
+            return request.build_absolute_uri(obj.qr_code_image.url)
         return None
