@@ -15,15 +15,16 @@ class RegisterTeacherSerializer(serializers.ModelSerializer):
             'role':{'read_only':True}
         }
         
-        def create(self, validated_data):
-            user = User(
-                username=validated_data['username'],
-                email=validated_data.get('email','')
-            )
-            user.set_password(validated_data['password'])
-            user.role = 'TEACHER'
-            user.save()
-            return user
+    def create(self, validated_data):
+        user = User(
+            username=validated_data['username'],
+            email=validated_data.get('email',''),
+            is_active=True
+        )
+        user.set_password(validated_data['password'])
+        user.role = 'TEACHER'
+        user.save()
+        return user
 
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
