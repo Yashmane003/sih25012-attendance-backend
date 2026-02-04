@@ -32,14 +32,60 @@ class RegisterTeacherView(APIView):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+class UserListView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get(self, request):
+        users = User.objects.all().order_by("-id")
+        serializer = ProfileSerializer(users, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class DeleteTeacherView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def delete(self, request, teacher_id):
+        # Step 1: Find teacher
+        try:
+            teacher = User.objects.get(id=teacher_id, role="TEACHER")
+        except User.DoesNotExist:
+            return Response({"error": "Teacher not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Step 2: Prevent admin self delete
+        if teacher.id == request.user.id:
+            return Response({"error": "Admin cannot delete own account"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Step 3: Remove teacher from assigned classes
+        SchoolClass.objects.filter(class_teacher=teacher).update(class_teacher=None)
+
+        # Step 4: Soft delete
+        teacher.is_active = False
+        teacher.is_deleted = True
+        teacher.save()
+
+        return Response({"message": "Teacher deleted (soft delete) successfully"}, status=status.HTTP_200_OK)
+
+    
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        user=User.objects.all()
-        # serializer = ProfileSerializer(request.user)
-        serializer = ProfileSerializer(user, many=True)
+        serializer = ProfileSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+class TeacherListView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get(self, request):
+        teachers = User.objects.filter(
+            role="TEACHER",
+            is_deleted=False,
+            is_active=True
+        ).order_by("-id")
+
+        serializer = ProfileSerializer(teachers, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
     
 class SchoolClassCreateView(APIView):

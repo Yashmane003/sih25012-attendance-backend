@@ -11,7 +11,9 @@ class User(AbstractUser):
         ('TEACHER','Teacher'),
     )
     
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='TEACHER')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='ADMIN')
+    # Soft delete support
+    is_deleted = models.BooleanField(default=False)
 
 class SchoolClass(models.Model):
     class_name = models.CharField(max_length=20)

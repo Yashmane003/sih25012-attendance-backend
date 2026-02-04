@@ -1,6 +1,9 @@
 from django.urls import path
 from .views import (RegisterTeacherView, 
     ProfileView,
+    TeacherListView,
+    UserListView,
+    DeleteTeacherView,
     SchoolClassCreateView,
     SchoolClassListView,
     SchoolClassDetailView,
@@ -25,6 +28,10 @@ from .views import (RegisterTeacherView,
 urlpatterns = [
     path('register-teacher/', RegisterTeacherView.as_view(), name='register_teacher'),
     path('profile/', ProfileView.as_view(), name='profile'),
+    path("teachers/", TeacherListView.as_view(), name="teacher_list"),
+    path("users/", UserListView.as_view(), name="user_list"),
+    path("teachers/<int:teacher_id>/delete/", DeleteTeacherView.as_view(), name="delete_teacher"),
+    
     # Phase 2 - Class Module
     path('classes/create/', SchoolClassCreateView.as_view(), name='class_create'),
     path('classes/', SchoolClassListView.as_view(), name='class_list'),
