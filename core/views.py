@@ -253,30 +253,96 @@ class MarkAttendanceByQRView(APIView):
 
         # Step 7: Prevent duplicate attendance for same day
         today = timezone.now().date()
-        if AttendanceRecord.objects.filter(student=student, date=today).exists():
-            return Response({"error": "Attendance already marked today"}, status=status.HTTP_409_CONFLICT)
-
-        # Step 8: Create attendance record
-        attendance = AttendanceRecord.objects.create(
+        attendance, created = AttendanceRecord.objects.get_or_create(
             student=student,
             student_class=student.student_class,
             date=today,
-            status='P',
-            marked_by=request.user,
-            method="QR"
+            defaults={
+                "status": "P",
+                "marked_by": request.user,
+                "method": "QR"
+            }
         )
 
-        # Step 9: Return response
+        if not created:
+            return Response(
+                {"error": "Attendance already marked today"},
+                status=status.HTTP_409_CONFLICT
+            )
+
+        # Step 8: Return response
         serializer = AttendanceRecordSerializer(attendance)
         return Response(
             {"message": "Attendance marked successfully", "data": serializer.data},
             status=status.HTTP_201_CREATED
         )
+        
+class FinalizeAttendanceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, class_id):
+        if request.user.role not in ["TEACHER", "ADMIN"]:
+            return Response(
+                {"error": "Not allowed"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        today = timezone.now().date()
+
+        # Get class
+        try:
+            school_class = SchoolClass.objects.get(id=class_id)
+        except SchoolClass.DoesNotExist:
+            return Response(
+                {"error": "Class not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get all active students of class
+        students = Student.objects.filter(
+            student_class=school_class,
+            is_active=True
+        )
+
+        present_count = 0
+        absent_count = 0
+
+        for student in students:
+            attendance, created = AttendanceRecord.objects.get_or_create(
+                student=student,
+                student_class=school_class,
+                date=today,
+                defaults={
+                    "status": "A",
+                    "marked_by": request.user,
+                    "method": "AUTO"
+                }
+            )
+
+            if created:
+                absent_count += 1
+            else:
+                present_count += 1
+
+        return Response({
+            "message": "Attendance finalized successfully",
+            "class": str(school_class),
+            "date": str(today),
+            "total_students": students.count(),
+            "present": present_count,
+            "absent": absent_count
+        }, status=status.HTTP_200_OK)
+
 
 class TodayAttendanceByClassView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, class_id):
+        if request.user.role not in ["TEACHER", "ADMIN"]:
+            return Response(
+                {"error": "Not allowed"},
+                status=status.HTTP_403_FORBIDDEN
+            )
         today = timezone.now().date()
 
         records = AttendanceRecord.objects.filter(
