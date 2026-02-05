@@ -103,7 +103,7 @@ class SchoolClassCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class SchoolClassListView(APIView):
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request):
         classes = SchoolClass.objects.all().order_by('-id')
@@ -111,7 +111,7 @@ class SchoolClassListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 class SchoolClassDetailView(APIView):
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request, pk):
         try:
@@ -170,7 +170,7 @@ class StudentCreateView(APIView):
         return Response(serializer.error, status=status.HTTP_400_BAD_REQUEST)
 
 class StudentListView(APIView):
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         students = Student.objects.all().order_by('-id')
@@ -178,7 +178,7 @@ class StudentListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class StudentDetailView(APIView):
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         try:
